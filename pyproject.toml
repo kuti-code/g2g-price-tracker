@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "g2g-price-tracker"
+version = "0.1.0"
+description = "Track seller prices from any supported G2G category in a Windows desktop app."
+readme = "README.md"
+authors = [{ name = "kuti-code" }]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+  "Pillow>=10,<13",
+  "pystray>=0.19,<1",
+  "python-dotenv>=1.0,<2",
+  "XlsxWriter>=3.2,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pyinstaller>=6.10,<7",
+  "ruff>=0.6,<1",
+]
+
+[project.scripts]
+g2g-price = "g2g_price_tracker.cli:main"
+g2g-price-tracker = "g2g_price_tracker.desktop:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/g2g_price_tracker"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"assets/g2g-price-tracker.ico" = "g2g_price_tracker/assets/g2g-price-tracker.ico"
+"assets/g2g-price-tracker.png" = "g2g_price_tracker/assets/g2g-price-tracker.png"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

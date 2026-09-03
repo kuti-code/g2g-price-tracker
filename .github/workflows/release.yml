@@ -1,0 +1,82 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install project and build tools
+        run: python -m pip install --upgrade -e ".[dev]"
+
+      - name: Run tests
+        run: python -m unittest discover -s tests
+        env:
+          PYTHONPATH: src
+
+      - name: Check code quality
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Build Windows executable
+        run: python tools/build_exe.py
+
+      - name: Generate SHA-256 checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash G2GPriceTracker.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  G2GPriceTracker.exe" | Set-Content -Encoding ascii G2GPriceTracker.exe.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: G2GPriceTracker-Windows
+          path: |
+            G2GPriceTracker.exe
+            G2GPriceTracker.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: G2GPriceTracker-Windows
+          path: release
+
+      - name: Publish tagged GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >
+          gh release create "$RELEASE_TAG"
+          "release/G2GPriceTracker.exe"
+          "release/G2GPriceTracker.exe.sha256"
+          --verify-tag
+          --generate-notes
+          --title "G2G Price Tracker $RELEASE_TAG"
