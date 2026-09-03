@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/g2g-price-tracker.png" width="128" alt="G2G Price Tracker app icon with a teal chart and price tag, designed as a compact product logo on a clean background">
+</p>
+
 # G2G Price Tracker
 
 A tool for tracking a seller's price on supported G2G category pages. It keeps
@@ -12,6 +16,10 @@ a browser in the background.
 > This is an independent project and is not affiliated with G2G. It does not try
 > to bypass access controls. Please use reasonable tracking intervals and follow
 > the source site's terms and policies.
+
+## Preview
+
+![G2G Price Tracker application preview](docs/screenshots/app-preview.png)
 
 ## What it does
 
