@@ -1,9 +1,11 @@
 import sqlite3
 import unittest
+from contextlib import closing
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from g2g_price_tracker.database import PriceRepository
 from g2g_price_tracker.models import PriceObservation, build_target_key
@@ -48,7 +50,7 @@ class DatabaseTests(unittest.TestCase):
     def test_migrates_an_existing_database_without_deleting_history(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "prices.db"
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection, connection:
                 connection.execute(
                     """
                     CREATE TABLE price_observations (
@@ -82,6 +84,30 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertIsNone(rows[0]["market_lowest_price"])
             self.assertIsNone(rows[0]["market_average_price"])
+
+    def test_closes_each_database_connection(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "prices.db"
+            connections: list[sqlite3.Connection] = []
+            real_connect = sqlite3.connect
+
+            def tracked_connect(*args, **kwargs):
+                connection = real_connect(*args, **kwargs)
+                connections.append(connection)
+                return connection
+
+            with patch(
+                "g2g_price_tracker.database.sqlite3.connect",
+                side_effect=tracked_connect,
+            ):
+                repository = PriceRepository(path)
+                repository.initialize()
+                repository.count("missing-target")
+
+            self.assertEqual(len(connections), 2)
+            for connection in connections:
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    connection.execute("SELECT 1")
 
     def test_isolates_history_by_seller_and_source_url(self) -> None:
         with TemporaryDirectory() as directory:

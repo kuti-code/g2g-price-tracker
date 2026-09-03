@@ -54,10 +54,6 @@ class RealTkResizeTests(unittest.TestCase):
         self.settle()
 
     def tearDown(self):
-        # Cancel app heartbeats so later Tk instances cannot receive stale callbacks.
-        for callback in self.app.tk.splitlist(self.app.tk.call("after", "info")):
-            self.app.after_cancel(callback)
-        self.app.chart._frame_id = None
         self.app.destroy()
         for handler in self.app.logger.handlers[:]:
             handler.close()

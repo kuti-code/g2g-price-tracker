@@ -1,4 +1,6 @@
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -41,7 +43,7 @@ class PriceRepository:
     def initialize(self) -> None:
         if self._schema_ready:
             return
-        with sqlite3.connect(self.path) as connection:
+        with self._connection(initialize=False) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute("PRAGMA synchronous=NORMAL")
             connection.executescript(SCHEMA)
@@ -62,14 +64,20 @@ class PriceRepository:
                 )
         self._schema_ready = True
 
-    def _connect(self) -> sqlite3.Connection:
-        self.initialize()
+    @contextmanager
+    def _connection(self, *, initialize: bool = True) -> Iterator[sqlite3.Connection]:
+        if initialize:
+            self.initialize()
         connection = sqlite3.connect(self.path)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def add(self, observation: PriceObservation) -> int:
-        with self._connect() as connection:
+        with self._connection() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO price_observations
@@ -109,11 +117,11 @@ class PriceRepository:
             query += " WHERE target_key = ?"
             parameters.append(target_key)
         query += " ORDER BY observed_at ASC, id ASC"
-        with self._connect() as connection:
+        with self._connection() as connection:
             return list(connection.execute(query, parameters).fetchall())
 
     def count(self, target_key: str) -> int:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 "SELECT COUNT(*) FROM price_observations WHERE target_key = ?",
                 (target_key,),
@@ -122,7 +130,7 @@ class PriceRepository:
 
     def recent_rows(self, target_key: str, limit: int = TABLE_ROW_LIMIT) -> list[sqlite3.Row]:
         """Newest first, capped for the on-screen table."""
-        with self._connect() as connection:
+        with self._connection() as connection:
             return list(
                 connection.execute(
                     f"SELECT {_CHART_COLUMNS} FROM price_observations "
@@ -132,7 +140,7 @@ class PriceRepository:
             )
 
     def target_summary(self, target_key: str) -> dict[str, object] | None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             aggregates = connection.execute(
                 """
                 SELECT COUNT(*) AS count,
@@ -185,7 +193,7 @@ class PriceRepository:
         limit: int = CHART_ROW_LIMIT,
     ) -> list[sqlite3.Row]:
         current = now or datetime.now(UTC)
-        with self._connect() as connection:
+        with self._connection() as connection:
             if range_name == "Last 100 Checks":
                 rows = list(
                     connection.execute(
@@ -224,7 +232,7 @@ class PriceRepository:
             )
 
     def delete_target(self, target_key: str) -> int:
-        with self._connect() as connection:
+        with self._connection() as connection:
             cursor = connection.execute(
                 "DELETE FROM price_observations WHERE target_key = ?",
                 (target_key,),
