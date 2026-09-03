@@ -63,6 +63,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - name: Download verified Windows artifact
         uses: actions/download-artifact@v8
         with:
